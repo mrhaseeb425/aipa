@@ -1,0 +1,38 @@
+const express = require("express");
+const router = express.Router();
+const { sendEmail } = require("../services/emailService");
+
+router.post("/send", async (req, res) => {
+  const { to, subject, message } = req.body;
+
+  if (!to || !subject || !message) {
+    return res.status(400).json({
+      success: false,
+      error: "Missing fields: to, subject, message",
+    });
+  }
+  try {
+    const html = await ejs.renderFile(
+      path.join(__dirname, "views/forget_password_email_template.ejs"),
+      {
+        title: "Express",
+        otp: "16764",
+        expiry: 5,
+      },
+    );
+    const result = await sendEmail({ to, subject, html });
+
+    res.status(200).json({
+      success: true,
+      message: "Email sent",
+      data: result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: "Email Failed",
+      detail: error.message,
+    });
+  }
+});
+module.exports = router;
