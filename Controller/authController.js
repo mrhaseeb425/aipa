@@ -89,6 +89,7 @@ exports.login = async (req, res) => {
   }
 };
 
+// ForgotPassword
 // request forget pass
 // param email: get user form email than plot the 6 digit code on the user and than send otp through email
 
@@ -105,14 +106,16 @@ exports.login = async (req, res) => {
 // validate otp
 // change forget pass
 
+//  ForgotPassword
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     console.log("Email received:", email);
 
-    const [rows] = await db.execute("SELECT * FROM users WHERE email = ?", [
+    const {rows} = await db.execute("SELECT * FROM users WHERE email = ?", [
       email,
     ]);
+    console.log("rows:", rows);
 
     if (rows.length === 0) {
       return res.status(404).json({
@@ -127,15 +130,17 @@ exports.forgotPassword = async (req, res) => {
       [generatedOtp, Date.now() + 6 * 60 * 1000, email],
     );
 
-     const html = await ejs.renderFile(
-      path.join(__dirname, "views/forget_password_email_template.ejs"),
-      {
-        title: "Express",
-        otp: "16764",
-        expiry: 5,
-      },
-    );
-    const result = await sendEmail({ to, subject, html });
+    console.log("generatedOtp:", generatedOtp);
+    // const html = await ejs.renderFile(
+    //   path.join(__dirname, "views/forget_password_email_template.ejs"),
+    //   {
+    //     title: "Express",
+    //     otp: generatedOtp,
+    //     expiry: 5,
+    //   },
+    // );
+    // const result = await sendEmail({ to, subject, html });
+    const result = await sendEmail({ to, subject, message: "ddzf" });
 
     // await sendEmail({
     //   to: email,
@@ -143,10 +148,7 @@ exports.forgotPassword = async (req, res) => {
     //   message: `Aapka OTP hai: ${generatedOtp}`,
     // });
 
-    res.status(200).json({
-      success: true,
-      message: "The OTP has been sent to your email!",
-    });
+    res.status(200).json(result);
   } catch (error) {
     console.log("Error Details:", error);
     res.status(500).json({

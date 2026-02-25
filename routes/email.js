@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const { sendEmail } = require("../services/emailService");
+const ejs = require("ejs");
+const path = require("path");
 
 router.post("/send", async (req, res) => {
   const { to, subject, message } = req.body;
@@ -12,12 +14,13 @@ router.post("/send", async (req, res) => {
     });
   }
   try {
+    const dynamicOTP = Math.floor(100000 + Math.random() * 900000).toString();
     const html = await ejs.renderFile(
-      path.join(__dirname, "views/forget_password_email_template.ejs"),
+      path.join(__dirname, "../views/forget_password_email_template.ejs"),
       {
         title: "Express",
-        otp: "16764",
-        expiry: 5,
+        otp: dynamicOTP,
+        expiry: 6,
       },
     );
     const result = await sendEmail({ to, subject, html });
@@ -25,6 +28,7 @@ router.post("/send", async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Email sent",
+      otpSent: dynamicOTP,
       data: result,
     });
   } catch (error) {

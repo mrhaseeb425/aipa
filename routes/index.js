@@ -15,6 +15,7 @@ router.get("/test-email", function (req, res) {
     expiry: 6,
   });
 });
+
 router.post("/register", authController.register);
 router.post("/login", authController.login);
 router.get("/users", getUsersController.getMyUser);
