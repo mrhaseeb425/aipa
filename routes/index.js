@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const authController = require("../Controller/authController");
 const getUsersController = require("../Controller/usersController");
+const { sendEmail } = require("../services/emailService");
 
 /* GET home page. */
 router.get("/", function (req, res) {
@@ -10,13 +11,14 @@ router.get("/", function (req, res) {
 router.get("/test-email", function (req, res) {
   res.render("forget_password_email_template", {
     title: "Express",
-    otp: "16764",
-    expiry: 5,
+    otp: "167642",
+    expiry: 6,
   });
 });
 router.post("/register", authController.register);
 router.post("/login", authController.login);
 router.get("/users", getUsersController.getMyUser);
 router.use("/email", require("./email"));
+router.post("/forgot-password", authController.forgotPassword);
 
 module.exports = router;

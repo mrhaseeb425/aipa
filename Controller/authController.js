@@ -2,7 +2,7 @@ const db = require("../db/connection");
 const bcrypt = require("bcrypt");
 const env = require("dotenv").config();
 const jwt = require("jsonwebtoken");
-
+const { sendEmail } = require("../services/emailService");
 // register
 exports.register = async (req, res) => {
   const { email, password, name } = req.body;
@@ -105,5 +105,53 @@ exports.login = async (req, res) => {
 // validate otp
 // change forget pass
 
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    console.log("Email received:", email);
 
+    const [rows] = await db.execute("SELECT * FROM users WHERE email = ?", [
+      email,
+    ]);
 
+    if (rows.length === 0) {
+      return res.status(404).json({
+        message: "This email is not in the database!",
+      });
+    }
+
+    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    await db.execute(
+      "UPDATE users SET otp = ?, otp_expiry = ? WHERE email = ?",
+      [generatedOtp, Date.now() + 6 * 60 * 1000, email],
+    );
+
+     const html = await ejs.renderFile(
+      path.join(__dirname, "views/forget_password_email_template.ejs"),
+      {
+        title: "Express",
+        otp: "16764",
+        expiry: 5,
+      },
+    );
+    const result = await sendEmail({ to, subject, html });
+
+    // await sendEmail({
+    //   to: email,
+    //   subject: "Your 6-digit OTP",
+    //   message: `Aapka OTP hai: ${generatedOtp}`,
+    // });
+
+    res.status(200).json({
+      success: true,
+      message: "The OTP has been sent to your email!",
+    });
+  } catch (error) {
+    console.log("Error Details:", error);
+    res.status(500).json({
+      message: "Something went wrong.",
+      error: error.message,
+    });
+  }
+};
