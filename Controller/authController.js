@@ -112,41 +112,29 @@ exports.forgotPassword = async (req, res) => {
     const { email } = req.body;
     console.log("Email received:", email);
 
-    const {rows} = await db.execute("SELECT * FROM users WHERE email = ?", [
+    const [rows] = await db.execute("SELECT * FROM users WHERE email = ?", [
       email,
     ]);
     console.log("rows:", rows);
-
     if (rows.length === 0) {
       return res.status(404).json({
         message: "This email is not in the database!",
       });
     }
-
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-
     await db.execute(
       "UPDATE users SET otp = ?, otp_expiry = ? WHERE email = ?",
       [generatedOtp, Date.now() + 6 * 60 * 1000, email],
     );
-
     console.log("generatedOtp:", generatedOtp);
-    // const html = await ejs.renderFile(
-    //   path.join(__dirname, "views/forget_password_email_template.ejs"),
-    //   {
-    //     title: "Express",
-    //     otp: generatedOtp,
-    //     expiry: 5,
-    //   },
-    // );
-    // const result = await sendEmail({ to, subject, html });
-    const result = await sendEmail({ to, subject, message: "ddzf" });
+    const to = email;
+    const subject = "Your 6-digit OTP";
 
-    // await sendEmail({
-    //   to: email,
-    //   subject: "Your 6-digit OTP",
-    //   message: `Aapka OTP hai: ${generatedOtp}`,
-    // });
+    const result = await sendEmail({
+      to,
+      subject,
+      message: `OTP: ${generatedOtp}`,
+    });
 
     res.status(200).json(result);
   } catch (error) {
