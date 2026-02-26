@@ -3,14 +3,22 @@ const bcrypt = require("bcrypt");
 const env = require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const { sendEmail } = require("../services/emailService");
-// register
+
+
+// Register Controller
 exports.register = async (req, res) => {
+
+   // req.body se client se bheja gaya data nikal rahe hain
+  // email, password aur name frontend se aayega
   const { email, password, name } = req.body;
   if (!email || !password || !name) {
     return res.status(400).json({ message: "Email and password required" });
   }
   console.log("Register body:", req.body); // Debug: check password
   try {
+    
+    // Database me check kar rahe hain ke
+    // same email ka user pehle se exist karta hai ya nahi
     db.query(
       "SELECT * FROM users WHERE email = ?",
       [email],
