@@ -29,13 +29,14 @@ if (process.env.NODE_ENV === "development") {
   });
 }
 
-const sendEmail = async ({ to, subject, message }) => {
+//sendUserEmail
+const sendEmail = async ({ to, subject, html }) => {
   try {
     const info = await transporter.sendMail({
       from: process.env.FROM_EMAIL,
       to,
       subject,
-      text: message,
+      html,
     });
 
     if (process.env.NODE_ENV === "development") {

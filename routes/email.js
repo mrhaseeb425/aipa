@@ -4,6 +4,7 @@ const { sendEmail } = require("../services/emailService");
 const ejs = require("ejs");
 const path = require("path");
 
+// sendUserEmail
 router.post("/send", async (req, res) => {
   const { to, subject, message } = req.body;
 

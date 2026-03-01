@@ -5,7 +5,7 @@ const db = mysql
     host: "localhost",
     user: "root",
     password: "",
-    database: "mysql2",
+    database: "mydb",
   })
   .promise();
 
@@ -14,7 +14,7 @@ db.getConnection((err, connection) => {
     console.error("Database connection failed", err);
   } else {
     console.log("Database connected successfully");
-    connection.release(); // connection free karo pool me
+    connection.release(); 
   }
 });
 
