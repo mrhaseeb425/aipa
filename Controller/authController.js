@@ -5,44 +5,36 @@ const jwt = require("jsonwebtoken");
 const ejs = require("ejs");
 const path = require("path");
 const { sendEmail } = require("../services/emailService");
-
+const crypto = require("crypto");
+const multer = require("multer");
 
 //  login Users
 exports.login = async (req, res) => {
   const { email, password } = req.body;
   console.log(req.body);
-  
+
   if (!email || !password) {
     return res.status(400).json({ message: "Email and password are required" });
   }
   console.log(email);
-  
-
   try {
     const [users] = await db.execute("SELECT * FROM users WHERE email = ?", [
       email,
     ]);
-
     console.log(users);
-    
-
     if (users.length === 0) {
       return res.status(400).json({ message: "Invalid email or password" });
     }
-
     const user = users[0];
-
     const match = await bcrypt.compare(password, user.password);
     if (!match) {
       return res.status(400).json({ message: "Invalid email or password" });
     }
-
     const token = jwt.sign(
       { id: user.id, email: user.email },
       process.env.ACCESS_TOKEN_SECRET,
       { expiresIn: "1h" },
     );
-
     res.status(200).json({
       message: "Login successful",
       user: user,
@@ -55,43 +47,45 @@ exports.login = async (req, res) => {
       .json({ message: "Something went wrong", error: error.message });
   }
 };
-
-
-// 1. Create a helper function for the actual OTP logic
+// Create a helper function for the actual OTP logic
 const generateAndSaveOtp = async (email) => {
   const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-  // Ensure date is formatted for MySQL
-  const expiryTime = new Date(Date.now() + 6 * 60 * 1000); 
-
-  await db.execute(
-    "UPDATE users SET otp = ?, otp_expiry = ? WHERE email = ?",
-    [generatedOtp, expiryTime, email]
-  );
+  const expiryTime = new Date(Date.now() + 6 * 60 * 1000);
+  await db.execute("UPDATE users SET otp = ?, otp_expiry = ? WHERE email = ?", [
+    generatedOtp,
+    expiryTime,
+    email,
+  ]);
   return { generatedOtp, expiryTime };
 };
 
-// 2. Updated Register API
+// Updated Register API
 exports.register = async (req, res) => {
   const { email, password, name } = req.body;
   if (!email || !password || !name) {
-    return res.status(400).json({ message: "Email, password and name required" });
+    return res
+      .status(400)
+      .json({ message: "Email, password and name required" });
   }
 
   try {
     const normalizedEmail = email.toLowerCase().trim();
 
     // Check existing
-    const [existingUsers] = await db.execute("SELECT * FROM users WHERE email = ?", [normalizedEmail]);
+    const [existingUsers] = await db.execute(
+      "SELECT * FROM users WHERE email = ?",
+      [normalizedEmail],
+    );
     if (existingUsers.length > 0) {
       return res.status(400).json({ message: "User already exists" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-  
+
     // Insert User
     const [result] = await db.execute(
-      "INSERT INTO users (email, password, name, otp_success, otp, otp_expiry) VALUES (?, ?, ?, 0, NULL, NULL)",
-      [normalizedEmail, hashedPassword, name]
+      "INSERT INTO users (email, password, name, otp, otp_expiry) VALUES (?, ?, ?, NULL, NULL)",
+      [normalizedEmail, hashedPassword, name],
     );
 
     // CALLING THE OTP LOGIC HERE
@@ -101,7 +95,7 @@ exports.register = async (req, res) => {
     // Render and Send Email (Logic simplified for brevity)
     const html = await ejs.renderFile(
       path.join(__dirname, "../views/forget_password_email_template.ejs"),
-      { title: "Welcome", otp: generatedOtp }
+      { title: "Welcome", otp: generatedOtp },
     );
     // await sendEmail({ to: normalizedEmail, subject: "Welcome!", html });
 
@@ -112,17 +106,22 @@ exports.register = async (req, res) => {
     });
   } catch (error) {
     console.error("Register Error:", error);
-    res.status(500).json({ message: "Something went wrong", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Something went wrong", error: error.message });
   }
 };
 
-// 3. Updated sendPasswordResetOtp API (Uses the same helper)
-exports.sendPasswordResetOtp = async (req, res) => {
+//Updated resendPasswordResetOtp API (Uses the same helper)
+// Updated API to send password reset OTP using the shared helper function
+exports.resendPasswordResetOtp = async (req, res) => {
   try {
     const { email } = req.body;
     const normalizedEmail = email.toLowerCase().trim();
 
-    const [rows] = await db.execute("SELECT id FROM users WHERE email = ?", [normalizedEmail]);
+    const [rows] = await db.execute("SELECT id FROM users WHERE email = ?", [
+      normalizedEmail,
+    ]);
     if (rows.length === 0) {
       return res.status(404).json({ message: "Email not found" });
     }
@@ -130,28 +129,24 @@ exports.sendPasswordResetOtp = async (req, res) => {
     const { generatedOtp } = await generateAndSaveOtp(normalizedEmail);
 
     // Email logic here...
-    
+
     res.status(200).json({ success: true, message: "OTP sent" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-
 // Validate Otp
-// const { email , otp } = req.body;
-
-// otpValidator.js
-// otpValidator.js
-// checkOtpEmailRoute.js 
-// mtable ek time one time- password-send kar
+// Validate OTP sent to user's email
+// Extract email and OTP from request body
+// Ensures only one active OTP exists per user at a time
 exports.checkOtpEmailRoute = async (req, res) => {
   try {
     const { email, otp } = req.body;
     console.log("Request body for OTP verification:", req.body);
 
     if (!email || !otp) {
-      console.log("Missing email or OTP");
+      console.log("Missing email and OTP");
       return res
         .status(400)
         .json({ success: false, message: "Email and OTP required" });
@@ -159,101 +154,47 @@ exports.checkOtpEmailRoute = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
- const [rows] = await db.execute(
-  "SELECT otp, otp_expiry FROM users WHERE email = ?",
-  [normalizedEmail]
-);
+    const [rows] = await db.execute(
+      "SELECT otp, otp_expiry FROM users WHERE email = ?",
+      [normalizedEmail],
+    );
     console.log("DB query result:", rows);
 
-
-if (!rows || rows.length === 0) {
-  console.log("No user found with this email:", normalizedEmail);
-  return res
-    .status(404)
-    .json({ success: false, message: "Email not found" });
-}
+    if (!rows || rows.length === 0) {
+      console.log("No user found with this email:", normalizedEmail);
+      return res
+        .status(404)
+        .json({ success: false, message: "Email not found" });
+    }
 
     const user = rows[0];
 
-    // 2. Check if OTP exists in DB
     if (!user.otp) {
-      return res.status(400).json({ success: false, message: "No active OTP found." });
+      return res
+        .status(400)
+        .json({ success: false, message: "No active OTP found." });
     }
 
-    // 3. Check Expiry
     const nows = new Date();
-    const otpExpirys = new Date(user.otp_expiry);
+    const otpExpiry = new Date(user.otp_expiry);
 
-    if (otpExpirys < nows) {
+    if (otpExpiry < nows) {
       return res.status(400).json({ success: false, message: "OTP expired." });
     }
 
-    // 4. Verify OTP (Trim both to be safe)
     if (String(otp).trim() !== String(user.otp).trim()) {
       return res.status(400).json({ success: false, message: "Invalid OTP" });
     }
 
-    // 5. SUCCESS: Clear the OTP so it can't be reused
     await db.execute(
-      "UPDATE users SET otp = NULL, otp_success = 1, otp_expiry = NULL WHERE email = ?",
-      [normalizedEmail]
+      "UPDATE users SET otp = NULL, otp_expiry = NULL WHERE email = ?",
+      [normalizedEmail],
     );
 
     return res.status(200).json({
       success: true,
       message: "OTP verified successfully",
     });
-
-//   if (!user.otp || !user.otp_expiry) {
-//   console.log("OTP or expiry missing for user:", normalizedEmail);
-//   return res.status(400).json({
-//     success: false,
-//     message: "No OTP found. Please request a new one.",
-//   });
-// }
-
-   
-//     const now = Date.now();
-//     const otpExpiry = new Date(user.otp_expiry).getTime();
-//     console.log("Current time:", new Date(now).toLocaleString());
-//     console.log("OTP expiry from DB:", new Date(otpExpiry).toLocaleString());
-//     console.log("OTP in DB:", user.otp, "OTP from request:", otp);
-
-//     if (otpExpiry < now) {
-//       console.log("OTP has expired for user:", normalizedEmail);
-//       return res.status(400).json({
-//         success: false,
-//         message: "OTP expired. Please request a new one.",
-//       });
-//     }
-
-//     console.log(user.otp);
-// console.log(otp);
-// console.log("otpotpotpotp");
-
-
-//     if (String(otp).trim() !== String(user.otp).trim()) {
-//       console.log("OTP mismatch for user:", normalizedEmail);
-//       console.log("Entered OTP:", otp);
-//      console.log("Database OTP:", user.otp);
-//       return res.status(400).json({ success: false, message: "Invalid OTP" });
-//     }
-// const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-// const expiryTime = new Date(Date.now() + 6 * 60 * 1000);
-// const expiryTimeStr = expiryTime.toISOString().slice(0, 19).replace("T", " ");
-
-//     // Clear OTP after successful verification
-// await db.execute(
-//   "UPDATE users SET otp = ?, otp_expiry = ? WHERE email = ?",
-//   [generatedOtp, expiryTimeStr, email]
-// );
-// console.log("Generated OTP:", generatedOtp, "Expiry:", expiryTimeStr);
-//     console.log("OTP cleanup result:", result);
-
-//     return res.status(200).json({
-//       success: true,
-//       message: "OTP verified successfully",
-//     });
   } catch (error) {
     console.error("OTP verification error:", error);
     return res
@@ -263,6 +204,7 @@ if (!rows || rows.length === 0) {
 };
 
 // ChangePassword
+// Verify OTP and update user password
 exports.changePassword = async (req, res) => {
   const verifyOtp = async (email, otp) => {
     try {
@@ -279,12 +221,10 @@ exports.changePassword = async (req, res) => {
       console.log("DB OTP:", dbOtp);
       console.log("DB Expiry:", otpExpiry);
       console.log("Current Time:", now);
-
       if (dbOtp !== otp) {
         console.log("OTP mismatch");
         return false;
       }
-
       if (now > otpExpiry) {
         console.log("OTP expired");
         return false;
@@ -358,4 +298,212 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-//
+// Forgot Password - Reset link email
+exports.forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  console.log(req.body);
+  if (!email) {
+    return res.status(400).json({ success: false, message: "Email required" });
+  }
+  try {
+    const [users] = await db.query("SELECT * FROM users WHERE email = ?", [
+      email,
+    ]);
+    if (users.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message:
+          "If this email is registered, a password reset link has been sent.",
+      });
+    }
+    const user = users[0];
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+    const tokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    await db.query(
+      "UPDATE users SET reset_token = ?, reset_token_expiry = ? WHERE id = ?",
+      [hashedToken, tokenExpiry, user.id],
+    );
+
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}&email=${email}`;
+
+    console.log(`Password reset link for ${email}: ${resetLink}`);
+
+    return res.status(200).json({
+      success: true,
+      message: "The password reset link has been sent to your email",
+    });
+  } catch (error) {
+    console.error("forgotPassword error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Get all users id
+exports.getUserById = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "User ID required" });
+    }
+
+    const [users] = await db.query("SELECT * FROM users WHERE id = ?", [
+      userId,
+    ]);
+
+    if (users.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    const user = users[0];
+
+    return res.status(200).json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    console.error("getUserById error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Update user
+exports.updateUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { name, password } = req.body;
+
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "User ID required" });
+    }
+
+    const [users] = await db.query("SELECT * FROM users WHERE id = ?", [
+      userId,
+    ]);
+
+    if (users.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    const user = users[0];
+
+    let hashedPassword = user.password;
+    if (password) {
+      hashedPassword = await bcrypt.hash(password, 10);
+    }
+
+    await db.query("UPDATE users SET name = ?, password = ? WHERE id = ?", [
+      name || user.name,
+      hashedPassword,
+      userId,
+    ]);
+
+    return res
+      .status(200)
+      .json({ success: true, message: "User updated successfully" });
+  } catch (error) {
+    console.error("updateUser error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Delete user
+exports.deleteUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "User ID required" });
+    }
+
+    const [users] = await db.query("SELECT * FROM users WHERE id = ?", [
+      userId,
+    ]);
+    if (users.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    await db.query("DELETE FROM users WHERE id = ?", [userId]);
+
+    return res
+      .status(200)
+      .json({ success: true, message: "User deleted successfully" });
+  } catch (error) {
+    console.error("deleteUser error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Upload Image
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/");
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
+});
+
+const fileFilter = (req, file, cb) => {
+  console.log("File received:", file);
+
+  const allowedExtensions = /jpeg|jpg|png|gif/;
+  const allowedMimeTypes = /image\/(jpeg|jpg|png|gif)/;
+
+  const extName = allowedExtensions.test(
+    path.extname(file.originalname).toLowerCase(),
+  );
+  const mimeType = allowedMimeTypes.test(file.mimetype);
+
+  if (extName && mimeType) {
+    cb(null, true);
+  } else {
+    cb(new Error("Only images are allowed"));
+  }
+};
+
+const upload = multer({ storage, fileFilter }).single("image");
+
+exports.uploadImage = (req, res) => {
+  upload(req, res, function (err) {
+    console.log("Headers:", req.headers["content-type"]);
+    console.log("Body:", req.body);
+    console.log("File:", req.file);
+
+    if (err) {
+      console.log(err);
+
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ success: false, message: "No file uploaded" });
+    }
+    const webPath = req.file.path.replace(/\\/g, "/");
+    res.status(200).json({
+      success: true,
+      message: "Image uploaded successfully",
+      filename: req.file.filename,
+      path: webPath,
+      url: `http://localhost:3000/${webPath}`
+    });
+  });
+};

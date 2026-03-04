@@ -3,13 +3,11 @@ const nodemailer = require("nodemailer");
 let transporter;
 
 if (process.env.NODE_ENV === "development") {
-  // Dev: Log emails instead of sending
   transporter = nodemailer.createTransport({
     jsonTransport: true,
   });
   console.log("Dev mode: Emails will be logged, not sent");
 } else {
-  // Production: Real SMTP
   transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT),
@@ -38,11 +36,9 @@ const sendEmail = async ({ to, subject, html }) => {
       subject,
       html,
     });
-
-    if (process.env.NODE_ENV === "development") {
-      console.log("Email Content:\n", info.message);
-    }
-
+   if (process.env.NODE_ENV === "development") {
+    console.log("App is running in development mode");
+}
     return {
       success: true,
       messageId: info.messageId || "dev-message",
