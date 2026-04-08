@@ -1,8 +1,8 @@
-const express = require("express");
+import ejs from "ejs";
+import express from "express";
+import path from "path";
+import  sendEmail  from "../services/emailService.js";
 const router = express.Router();
-const { sendEmail } = require("../services/emailService");
-const ejs = require("ejs");
-const path = require("path");
 
 // sendUserEmail
 router.post("/send", async (req, res) => {
@@ -46,4 +46,5 @@ router.post("/send", async (req, res) => {
     });
   }
 });
-module.exports = router;
+
+export default router;

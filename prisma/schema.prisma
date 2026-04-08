@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model assessment_categories {
+  id             Int         @id @default(autoincrement())
+  assessments_id Int
+  category_id    Int
+
+  assessment     assessments @relation(fields: [assessments_id], references: [id], onDelete: Cascade)
+  category       categories  @relation(fields: [category_id], references: [id])
+
+  @@index([assessments_id])
+  @@index([category_id])
+}
+
+model assessment_details {
+  id            Int      @id @default(autoincrement())
+  client_id     Int
+  question_id   Int
+  category_id   Int
+  answer        String
+  concern_level Int?
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  assessment    assessments? @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  question      question?    @relation(fields: [question_id], references: [id])
+  category      categories?  @relation(fields: [category_id], references: [id])
+  
+  assessment_images assessment_images[]
+
+  @@unique([client_id, question_id])
+}
+
+model assessments {
+  id            Int                  @id @default(autoincrement())
+  client_name   String
+  email_address String
+  phone         Int
+  state         String
+  zip_code      Int
+  address       String
+  user_id       Int
+  createdAt     DateTime             @default(now())
+
+  user          user                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  details       assessment_details[]
+  categories_links assessment_categories[]
+}
+
+model businesses {
+  id            Int      @id @default(autoincrement())
+  user_id       Int
+  business_name String
+  email         String
+  phone_number  Int
+  state         String
+  zip_code      String
+  address       String
+  logo_url      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model categories {
+  id                 Int                    @id @default(autoincrement())
+  name               String
+  questions          question[]
+  assessment_links   assessment_categories[]
+  assessment_details assessment_details[]
+}
+
+model question {
+  id          Int        @id @default(autoincrement())
+  question    String
+  category_id Int
+  category    categories @relation(fields: [category_id], references: [id])
+
+  assessment_details assessment_details[]
+}
+
+model task {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  start_time  DateTime
+  end_time    DateTime
+  user_id     Int
+}
+
+model user {
+  id                 Int       @id @default(autoincrement())
+  email              String    @unique(map: "User_email_key")
+  password           String
+  name               String
+  phone              Int?
+  gender             String?
+  reset_token        String?
+  reset_token_expiry String?
+  profile_pic        String?   @default("")
+  otp                String?
+  otp_expiry         DateTime?
+  createdAt         DateTime  @default(now()) 
+
+   assessments   assessments[]
+}
+
+
+model assessment_images {
+  id                   Int                @id @default(autoincrement())
+  assessment_detail_id Int
+  image_url            String
+  answer               String?
+  createdAt            DateTime           @default(now())
+
+  assessment_detail    assessment_details @relation(fields: [assessment_detail_id], references: [id], onDelete: Cascade)
+}

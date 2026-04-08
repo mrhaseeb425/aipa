@@ -54,3 +54,4 @@ out/
 
 # Optional TypeScript files
 *.tsbuildinfo
+/generated/prisma

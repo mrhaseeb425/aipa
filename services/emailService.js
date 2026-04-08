@@ -1,4 +1,4 @@
-const nodemailer = require("nodemailer");
+import nodemailer from "nodemailer";
 
 let transporter;
 
@@ -36,9 +36,9 @@ const sendEmail = async ({ to, subject, html }) => {
       subject,
       html,
     });
-   if (process.env.NODE_ENV === "development") {
-    console.log("App is running in development mode");
-}
+    if (process.env.NODE_ENV === "development") {
+      console.log("App is running in development mode");
+    }
     return {
       success: true,
       messageId: info.messageId || "dev-message",
@@ -48,5 +48,4 @@ const sendEmail = async ({ to, subject, html }) => {
     throw error;
   }
 };
-
-module.exports = { sendEmail };
+export default { sendEmail };

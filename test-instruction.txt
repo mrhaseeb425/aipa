@@ -1,0 +1,77 @@
+
+number catergories  = 3
+each catergory will have = 5 questions
+
+
+user name = "noman traders"
+user email = "nom@gmail.com"
+Pass = "12345678"
+
+Assessment name: "Camp"
+Assessment details:
+    answer: [
+        [
+        `   question_id: "1",
+            category_id: "1",
+            answer: "Yes",
+            image_url: "https://example.com/image1.jpg"
+        ],
+        [
+        `   question_id: "2",
+            category_id: "1",
+            answer: "No",
+        ]
+    ]
+
+Assessment name: "land"
+Assessment details:
+    answer: [
+        [
+        `   question_id: "1",
+            category_id: "1",
+            answer: "Yes",
+        ],
+        [
+        `   question_id: "2",
+            category_id: "1",
+            answer: "Yes",
+            image_url: "https://example.com/image1.jpg"
+        ]
+    ]
+
+
+user name = "lahore Global"
+user email = "lahore@gmail.com"
+Pass = "12345678"
+
+Assessment name: "Camp"
+Assessment details:
+    answer: [
+        [
+        `   question_id: "1",
+            category_id: "2",
+            answer: "Yes",
+            image_url: "https://example.com/image1.jpg"
+        ],
+        [
+        `   question_id: "2",
+            category_id: "2",
+            answer: "No",
+        ]
+    ]
+
+Assessment name: "land"
+Assessment details:
+    answer: [
+        [
+        `   question_id: "1",
+            category_id: "2",
+            answer: "Yes",
+        ],
+        [
+        `   question_id: "4",
+            category_id: "2",
+            answer: "Yes",
+            image_url: "https://example.com/image1.jpg"
+        ]
+    ]
