@@ -3,12 +3,13 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+// Console log laga kar check karein ke URL mil raha hai ya nahi
+console.log("Connecting to:", process.env.DATABASE_URL);
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
-  migrations: {
-    path: "prisma/migrations",
-  },
+  // URL ko direct process.env se dein
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: process.env.DATABASE_URL,
   },
 });

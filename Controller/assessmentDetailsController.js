@@ -1,6 +1,6 @@
 import { prisma } from "../libs/prisma.js";
 
-// post //
+// post // save assessment details
 export const saveAssessmentDetails = async (req, res) => {
   try {
     const { assessment_id, answers } = req.body;
@@ -16,6 +16,7 @@ export const saveAssessmentDetails = async (req, res) => {
         message: "assessment_id and answers array are required",
       });
     }
+
     const assessmentExists = await prisma.assessments.findUnique({
       where: { id: Number(assessment_id) },
     });
@@ -27,10 +28,23 @@ export const saveAssessmentDetails = async (req, res) => {
       });
     }
 
-    const questionIds = answers.map((a) => Number(a.question_id));
+    const questionIds = answers
+      .map((a) => (a.question_id ? Number(a.question_id) : null))
+      .filter((id) => id !== null);
+
+    if (questionIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid question_ids provided in the answers array",
+      });
+    }
 
     const existingQuestions = await prisma.question.findMany({
-      where: { id: { in: questionIds } },
+      where: {
+        id: {
+          in: questionIds,
+        },
+      },
       select: { id: true, category_id: true },
     });
 
@@ -40,7 +54,7 @@ export const saveAssessmentDetails = async (req, res) => {
     if (invalidIds.length > 0) {
       return res.status(400).json({
         success: false,
-        message: `These question_ids do not exist in database: ${invalidIds.join(",")}`,
+        message: `These question_ids do not exist: ${invalidIds.join(",")}`,
       });
     }
 
@@ -69,39 +83,139 @@ export const saveAssessmentDetails = async (req, res) => {
       count: result.count,
     });
   } catch (error) {
-    console.error("SAVE_DETAILS_ERROR:", error.message);
+    console.error("SAVE_DETAILS_ERROR:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to save assessment details",
+      message: "Internal Server Error",
       error: error.message,
     });
   }
 };
 
-// get All user
+// get All user assessments details
 export const getAllAssessments = async (req, res) => {
   try {
-    const allData = await prisma.assessment_details.findMany({
-      include: {
-        assessment: true,
-        question: true,
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.max(1, parseInt(req.query.limit) || 10);
+    const skip = (page - 1) * limit;
+
+    const [details, totalItems] = await prisma.$transaction([
+      prisma.assessment_details.findMany({
+        skip,
+        take: limit,
+        include: {
+          category: true,
+          question: {
+            select: { question: true },
+          },
+          assessment: true, 
+        },
+        orderBy: { id: "desc" },
+      }),
+      prisma.assessment_details.count(),
+    ]);
+
+    const formattedData = details.map((item) => ({
+      id: item.id,
+      user_name: item.assessment?.client_name || "N/A",
+      user_email: item.assessment?.email_address || "N/A",
+      phone: item.assessment?.phone || "N/A",
+      address: item.assessment?.address || "N/A",
+      zip_code: item.assessment?.zip_code || "N/A",
+
+      category_name: item.category?.name || "General",
+      question_text: item.question?.question || "N/A",
+      answer: item.answer || "No Answer",
+      score: item.score || 0,
+      notes: item.notes || "No Notes",
+      created_at: item.assessment?.createdAt, 
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: formattedData,
+      pagination: {
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: page,
+        limit,
       },
     });
+  } catch (error) {
+    console.error("PRISMA_ERROR:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Database fetching error",
+    });
+  }
+};
+
+// update assessment
+const updateAssessment = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      client_name,
+      email_address,
+      phone,
+      state,
+      zip_code,
+      address,
+      category_id,
+      answer,
+      concern_level,
+      notes,
+    } = req.body;
+
+    const updatedData = {
+      "assessment.client_name": client_name,
+      "assessment.email_address": email_address,
+      "assessment.phone": phone,
+      "assessment.state": state,
+      "assessment.zip_code": zip_code,
+      "assessment.address": address,
+      "assessment.concern_level": concern_level,
+      "assessment.notes": notes,
+      category_id: category_id, // ✅ FIXED
+      answer: answer,
+    };
+
+    const result = await AssessmentLog.findByIdAndUpdate(
+      id,
+      { $set: updatedData },
+      { new: true },
+    )
+      .populate("category")
+      .populate("assessment.user");
+
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Update failed",
+    });
+  }
+};
+
+// delete assessment detail by id
+export const deleteAssessmentDetail = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.assessment_details.delete({
+      where: { id: parseInt(id) },
+    });
 
     return res.status(200).json({
       success: true,
-      count: allData.length,
-      data: allData,
+      message: "Assessment detail deleted successfully",
     });
   } catch (error) {
-    console.log("FULL ERROR:", error);
-
-    const backupData = await prisma.assessment_details.findMany();
-
-    return res.status(200).json({
-      success: true,
-      message: "Showing data without relations due to consistency error",
-      data: backupData,
+    return res.status(500).json({
+      success: false,
+      error: "Failed to delete or record not found",
     });
   }
 };
@@ -109,4 +223,6 @@ export const getAllAssessments = async (req, res) => {
 export default {
   saveAssessmentDetails,
   getAllAssessments,
+  deleteAssessmentDetail,
+  updateAssessment,
 };

@@ -1,33 +1,29 @@
 import { prisma } from "../libs/prisma.js";
 
 // create-Question //
+
 export const createQuestion = async (req, res) => {
   try {
     const { question, category_id } = req.body;
-    const catId = Number(category_id);
+    const catId = parseInt(category_id);
 
-    if (!question || !catId) {
+    if (!question || isNaN(catId)) {
       return res.status(400).json({
         success: false,
-        message: "Question text and Category ID are required!",
-      });
-    }
-
-    const categoryExists = await prisma.categories.findUnique({
-      where: { id: catId },
-    });
-
-    if (!categoryExists) {
-      return res.status(400).json({
-        success: false,
-        message: `Category ID ${catId} does not exist. Please create category first or use a valid ID.`,
+        message: "Valid Question text and Category ID are required!",
       });
     }
 
     const newQuestion = await prisma.question.create({
       data: {
         question: question,
-        category_id: catId,
+
+        category: {
+          connect: { id: catId },
+        },
+      },
+      include: {
+        category: true,
       },
     });
 
@@ -37,10 +33,10 @@ export const createQuestion = async (req, res) => {
       data: newQuestion,
     });
   } catch (error) {
-    console.error("CreateQuestion Error:", error.message);
+    console.error("FULL PRISMA ERROR:", error);
     return res.status(500).json({
       success: false,
-      message: "Database error during question creation",
+      message: "Internal Server Error",
       error: error.message,
     });
   }
@@ -90,27 +86,74 @@ export const getQuestion = async (req, res) => {
 };
 
 // get All user //
-// controllers/question.controller.js
+// export const getAllQuestions = async (req, res) => {
+//   try {
+//     const questions = await prisma.question.findMany({
+//       include: {
+//         category: true,
+//       },
+//     });
+
+//     const formatted = questions.map((q) => ({
+//       id: q.id,
+//       question: q.question,
+//       category_id: q.category_id,
+//       category_name: q.category.name,
+//     }));
+
+//     return res.status(200).json({
+//       success: true,
+//       count: questions.length,
+//       data: formatted,
+//     });
+//   } catch (error) {
+//     console.error("GetAllQuestions Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Error fetching questions",
+//       error: error.message,
+//     });
+//   }
+// };
 
 export const getAllQuestions = async (req, res) => {
   try {
-    const questions = await prisma.question.findMany({
-      include: {
-        category: true,
-      },
-    });
+    // 1. Pagination Params (Frontend se page aur limit lena)
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.max(1, parseInt(req.query.limit) || 10);
+    const skip = (page - 1) * limit;
 
-    const formatted = questions.map(q => ({
+    // 2. Transaction (Data aur Total Count ek saath fetch karna)
+    const [questions, totalQuestions] = await prisma.$transaction([
+      prisma.question.findMany({
+        skip,
+        take: limit,
+        include: {
+          category: true,
+        },
+        orderBy: { id: "asc" },
+      }),
+      prisma.question.count(),
+    ]);
+
+    // 3. Data Formatting
+    const formatted = questions.map((q) => ({
       id: q.id,
       question: q.question,
       category_id: q.category_id,
-      category_name: q.category.name
+      category_name: q.category?.name || "Uncategorized", // Safe check
     }));
 
+    // 4. Standard Response Structure (Jo table expect kar raha hai)
     return res.status(200).json({
       success: true,
-      count: questions.length,
-      data: formatted,
+      data: formatted, // Frontend categories ki tarah yahan 'data' check karega
+      pagination: {
+        totalItems: totalQuestions,
+        totalPages: Math.ceil(totalQuestions / limit) || 1,
+        currentPage: page,
+        limit,
+      },
     });
   } catch (error) {
     console.error("GetAllQuestions Error:", error);
@@ -178,12 +221,14 @@ export const getQuestionsByCategory = async (req, res) => {
 export const deleteQuestion = async (req, res) => {
   try {
     const { id } = req.params;
-    const questionId = parseInt(id);
+
+    const questionId = Number(id);
 
     if (isNaN(questionId)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid ID format" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid ID format provided",
+      });
     }
 
     const existingQuestion = await prisma.question.findUnique({
@@ -191,23 +236,25 @@ export const deleteQuestion = async (req, res) => {
     });
 
     if (!existingQuestion) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Question not found" });
+      return res.status(404).json({
+        success: false,
+        message: `Question with ID ${questionId} not found in database`,
+      });
     }
 
-    await prisma.$transaction([
-      prisma.assessment_details.deleteMany({
+    await prisma.$transaction(async (tx) => {
+      await tx.assessment_details.deleteMany({
         where: { question_id: questionId },
-      }),
-      prisma.question.delete({
+      });
+
+      await tx.question.delete({
         where: { id: questionId },
-      }),
-    ]);
+      });
+    });
 
     return res.status(200).json({
       success: true,
-      message: "Question and all related answers deleted successfully",
+      message: "Question and all related data deleted successfully",
     });
   } catch (error) {
     console.error("DELETE ERROR:", error.message);
@@ -219,10 +266,61 @@ export const deleteQuestion = async (req, res) => {
   }
 };
 
+// get-Questions //
+export const getQuestions = async (req, res) => {
+  try {
+    const questions = await prisma.question.findMany({
+      include: {
+        category: true,
+      },
+    });
+
+    const formatted = questions.map((q) => ({
+      id: q.id,
+      text: q.text || q.question || q.question_text || "",
+      category_id: q.categoryId,
+      category_name: q.category?.name || "NO CATEGORY",
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formatted,
+    });
+  } catch (error) {
+    console.error("Error fetching questions:", error);
+    res.status(500).json({ message: "Error fetching questions" });
+  }
+};
+// update-question
+export const updateQuestion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { text, categoryId } = req.body;
+
+    const updated = await prisma.question.update({
+      where: { id: Number(id) },
+      data: {
+        question: text,
+        category_id: categoryId ? Number(categoryId) : null,
+      },
+    });
+
+    res.status(200).json({ success: true, data: updated });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      success: false,
+      message: "Server error: Update failed",
+    });
+  }
+};
+
 export default {
   createQuestion,
   getQuestion,
   getQuestionsByCategory,
   deleteQuestion,
   getAllQuestions,
+  getQuestions,
+  updateQuestion,
 };

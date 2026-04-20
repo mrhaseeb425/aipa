@@ -2,7 +2,6 @@ import bcrypt from "bcrypt";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import ejs from "ejs";
-import fs from "fs";
 import jwt from "jsonwebtoken";
 import path from "path";
 import { prisma } from "../libs/prisma.js";
@@ -36,15 +35,15 @@ const generateAndSaveOtp = async (email) => {
 };
 
 //  REGISTER //
-
 export const register = async (req, res) => {
   try {
-    const { email, password, name, phone } = req.body;
+    const { email, password, name, phone, role } = req.body;
 
-    if (!email || !password || !name) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Email, password and name are required" });
+    if (!email || !password || !name || !role) {
+      return res.status(400).json({
+        success: false,
+        message: "Email, password, name and role are required",
+      });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -52,9 +51,11 @@ export const register = async (req, res) => {
     const existingUser = await prisma.user.findUnique({
       where: { email: normalizedEmail },
     });
-    
+
     if (existingUser) {
-      return res.status(400).json({ success: false, message: "User already exists" });
+      return res
+        .status(400)
+        .json({ success: false, message: "User already exists" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -64,9 +65,10 @@ export const register = async (req, res) => {
         name: name,
         email: normalizedEmail,
         password: hashedPassword,
-        phone: phone ? parseInt(phone) : null, 
-        profile_pic: "", 
-        otp: null, 
+        role: role.toUpperCase(),
+        phone: phone ? parseInt(phone) : null,
+        profile_pic: "",
+        otp: null,
         otp_expiry: null,
       },
     });
@@ -79,13 +81,12 @@ export const register = async (req, res) => {
       success: true,
       message: "User registered and OTP sent",
       token,
-      user: { 
-        id: newUser.id, 
-        email: normalizedEmail, 
-        name: newUser.name 
+      user: {
+        id: newUser.id,
+        email: normalizedEmail,
+        name: newUser.name,
       },
     });
-
   } catch (error) {
     console.error("Register Error Details:", error);
     return res.status(500).json({
@@ -96,7 +97,6 @@ export const register = async (req, res) => {
   }
 };
 
-
 // LOGIN //
 export const login = async (req, res) => {
   try {
@@ -104,6 +104,7 @@ export const login = async (req, res) => {
 
     if (!email || !password) {
       return res.status(400).json({
+        success: false,
         message: "Email and password are required",
       });
     }
@@ -115,17 +116,28 @@ export const login = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ message: "Invalid email or password" });
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid email or password" });
+    }
+
+    if (user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Access Denied: Only administrators are allowed to log in",
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: "Invalid email or password" });
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid email or password" });
     }
 
     const token = generateToken(user);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Login successful",
       token,
@@ -134,13 +146,15 @@ export const login = async (req, res) => {
         email: user.email,
         name: user.name,
         profile_pic: user.profile_pic,
+        role: user.role,
       },
     });
   } catch (error) {
     console.error("Login Error:", error);
-    res.status(500).json({
-      message: "Something went wrong",
-      error: error.message,
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
@@ -393,7 +407,6 @@ export const forgotPassword = async (req, res) => {
 //  GET USER //
 export const getUser = async (req, res) => {
   try {
-
     const userId = req.user?.id;
 
     if (!userId) {
@@ -412,8 +425,8 @@ export const getUser = async (req, res) => {
         name: true,
         email: true,
         profile_pic: true,
-        phone: true, 
-        gender: true, 
+        phone: true,
+        gender: true,
       },
     });
 
@@ -438,43 +451,6 @@ export const getUser = async (req, res) => {
   }
 };
 
-//  UPDATE USER //
-export const updateUser = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { name, password } = req.body;
-
-    let profile_pic = req.file
-      ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename.replace(/\s+/g, "_")}`
-      : undefined;
-
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    const hashedPassword = password
-      ? await bcrypt.hash(password, 10)
-      : user.password;
-
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        name: name || user.name,
-        password: hashedPassword,
-        profile_pic: profile_pic || user.profile_pic,
-      },
-    });
-
-    res.json({
-      success: true,
-      message: "User updated successfully",
-      profile_pic: updatedUser.profile_pic,
-    });
-  } catch (error) {
-    console.error("UpdateUser Error:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
 
 export default {
   register,
@@ -484,5 +460,4 @@ export default {
   changePassword,
   forgotPassword,
   getUser,
-  updateUser,
 };

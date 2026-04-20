@@ -1,71 +1,6 @@
 import { prisma } from "../libs/prisma.js";
 
-// 1 Create Assessment
-// export const createAssessment = async (req, res) => {
-//   try {
-//     const {
-//       client_name,
-//       email_address,
-//       phone,
-//       state,
-//       zip_code,
-//       address,
-//       user_id,
-//       category_ids,
-//     } = req.body;
-
-//     if (
-//       !client_name ||
-//       !user_id ||
-//       !category_ids ||
-//       category_ids.length === 0
-//     ) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Missing fields or no categories selected",
-//       });
-//     }
-
-//     const result = await prisma.$transaction(async (tx) => {
-//       const assessment = await tx.assessments.create({
-//         data: {
-//           client_name,
-//           email_address: email_address.toLowerCase().trim(),
-//           phone: Number(phone),
-//           state,
-//           zip_code: Number(zip_code),
-//           address,
-//           user_id: Number(user_id),
-//         },
-//       });
-
-//       const linkData = category_ids.map((catId) => ({
-//         assessments_id: assessment.id,
-//         category_id: Number(catId),
-//       }));
-
-//       await tx.assessment_categories.createMany({
-//         data: linkData,
-//       });
-
-//       return assessment;
-//     });
-
-//     return res.status(201).json({
-//       success: true,
-//       message: "Assessment successfully created with categories!",
-//       data: result,
-//     });
-//   } catch (error) {
-//     console.error("CreateAssessment Error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Database error",
-//       error: error.message,
-//     });
-//   }
-// };
-
+// Create Assessment
 export const createAssessment = async (req, res) => {
   try {
     const {
@@ -78,39 +13,71 @@ export const createAssessment = async (req, res) => {
       category_ids,
     } = req.body;
 
-    // Body se user_id nikalne ki bajaye req.user se lein (Token se)
-    const userIdFromToken = req.user.id;
+    const userIdFromToken = req.user?.id;
+
+    if (!userIdFromToken) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found in token",
+      });
+    }
 
     if (
       !client_name ||
-      !userIdFromToken ||
-      !category_ids ||
+      !Array.isArray(category_ids) ||
       category_ids.length === 0
     ) {
       return res.status(400).json({
         success: false,
-        message: "Missing fields or no categories selected",
+        message: "Client name and at least one category are required.",
+      });
+    }
+
+    const normalizedEmail = email_address
+      ? String(email_address).toLowerCase().trim()
+      : null;
+
+    const normalizedPhone =
+      phone !== undefined && phone !== null && phone !== ""
+        ? String(phone).trim()
+        : null;
+
+    const normalizedZip =
+      zip_code !== undefined && zip_code !== null && zip_code !== ""
+        ? String(zip_code).trim() 
+        : null;
+
+    const normalizedState = state ? String(state).trim() : null;
+
+    const normalizedAddress = address ? String(address).trim() : null;
+
+    const normalizedCategories = category_ids
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0);
+
+    if (normalizedCategories.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid category_ids are required.",
       });
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Assessment create karein
       const assessment = await tx.assessments.create({
         data: {
-          client_name,
-          email_address: email_address?.toLowerCase().trim(),
-          phone: Number(phone),
-          state,
-          zip_code: Number(zip_code),
-          address,
-          user_id: Number(userIdFromToken), // Token wali ID yahan use hogi
+          client_name: String(client_name).trim(),
+          email_address: normalizedEmail,
+          phone: normalizedPhone, 
+          state: normalizedState,
+          zip_code: normalizedZip, 
+          address: normalizedAddress,
+          user_id: Number(userIdFromToken),
         },
       });
 
-      // 2. Categories link karein
-      const linkData = category_ids.map((catId) => ({
+      const linkData = normalizedCategories.map((catId) => ({
         assessments_id: assessment.id,
-        category_id: Number(catId),
+        category_id: catId,
       }));
 
       await tx.assessment_categories.createMany({
@@ -122,7 +89,7 @@ export const createAssessment = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Assessment successfully created with categories!",
+      message: "Assessment created successfully with categories!",
       data: result,
     });
   } catch (error) {
@@ -132,13 +99,13 @@ export const createAssessment = async (req, res) => {
       return res.status(400).json({
         success: false,
         message:
-          "Invalid category_id. Please check if categories exist in the database.",
+          "Invalid category_id or user_id. One of the IDs does not exist.",
       });
     }
 
     return res.status(500).json({
       success: false,
-      message: "Database error",
+      message: "Internal Server Error",
       error: error.message,
     });
   }

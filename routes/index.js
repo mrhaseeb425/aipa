@@ -10,6 +10,7 @@ import categoriesController from "../Controller/categoriesController.js";
 import questionController from "../Controller/questionController.js";
 import taskController from "../Controller/taskController.js";
 import userController from "../Controller/usersController.js";
+import dashboardController from "../Controller/dashboardController.js";
 
 // Middleware
 import verifyToken from "../middleware/auth.js";
@@ -38,15 +39,17 @@ router.post("/changePassword", authController.changePassword);
 router.post("/forgotPassword", authController.forgotPassword);
 
 // USER
-router.get("/users", userController.getMyUser);
-router.get("/user", verifyToken, authController.getUser);
-router.put("/user", verifyToken, authController.updateUser);
+router.get("/get-my-user", verifyToken, userController.getMyUser);
+router.get("/get-user", verifyToken, authController.getUser);
+router.get("/all-users", verifyToken, userController.getAllUsers);
+router.get("/user/:id", verifyToken, userController.getUserById);
+router.put("/updateUser/:id", verifyToken, userController.updateUser);
+router.post("/create-user", verifyToken, userController.createUser);
 router.delete(
-  "/delete-account",
+  "/adminDeleteUser/:id",
   verifyToken,
-  userController.deleteUserAccount,
+  userController.adminDeleteUser,
 );
-
 router.post("/uploadProfilePic", verifyToken, userController.uploadProfilePic);
 
 //  EMAIL
@@ -59,27 +62,25 @@ router.get("/getTask", verifyToken, taskController.getTask);
 router.put("/updateTask/:id", verifyToken, taskController.updateTask);
 router.delete("/deleteTask/:id", verifyToken, taskController.deleteTask);
 
-// BUSINESS
+// BUSINESS CONTROLLERS AND ROUTES
 router.get(
   "/statesBusinesses",
   verifyToken,
   businessesController.statesBusinesses,
 );
 
-router.put(
-  "/updateBusiness/:id",
-  verifyToken,
-  businessesController.updateBusiness,
-);
+router.put("/updateBusiness/:id", businessesController.updateBusiness);
 
+router.post("/createBusiness", businessesController.createBusiness);
+router.get("/getAllBusinesses", businessesController.getAllBusinesses);
+router.delete("/deleteBusiness/:id", businessesController.deleteBusiness);
+
+// ASSESSMENT Controllers and Routes
 router.post(
-  "/createBusiness",
+  "/createAssessment",
   verifyToken,
-  businessesController.createBusiness,
+  assessmentController.createAssessment,
 );
-
-// ASSESSMENT
-router.post("/createAssessment", verifyToken, assessmentController.createAssessment);
 
 router.post(
   "/fillAssessmentAnswers",
@@ -117,11 +118,9 @@ router.delete(
   assessmentController.deleteAssessment,
 );
 
-// router.get("/get-action-list", verifyToken, assessmentController.getActionList);
-
 //  CATEGORIES
 router.post(
-  "/createClientAssessment",
+  "/create-category",
   verifyToken,
   categoriesController.createCategories,
 );
@@ -130,10 +129,21 @@ router.get(
   verifyToken,
   categoriesController.getAllCategories,
 );
+router.get("/categories", categoriesController.getCategories);
+router.delete("/delete-category/:id", categoriesController.deleteCategory);
+router.put("/update-category/:id", categoriesController.updateCategory);
+router.post(
+  "/single-create-category",
+  categoriesController.singleCreateCategory,
+);
+
 // QUESTIONS
 router.post("/createQuestion", questionController.createQuestion);
 router.get("/getQuestions/:id", questionController.getQuestion);
 router.get("/getAllQuestions", questionController.getAllQuestions);
+router.get("/getQuestions", questionController.getQuestions);
+router.get("/questions", questionController.getAllQuestions);
+router.put("/update-question/:id", questionController.updateQuestion);
 
 router.get(
   "/getQuestions/category/:id",
@@ -141,13 +151,19 @@ router.get(
 );
 router.delete("/deleteQuestion/:id", questionController.deleteQuestion);
 
-//  ANSWERS
+//  ASSESSMENT DETAILS CONTROLLER
 router.post("/save-details", assessmentDetailsController.saveAssessmentDetails);
 
-router.get(
-  "/getAllAssessments/:id",
-  assessmentDetailsController.getAllAssessments,
+router.get("/getAllAssessments", assessmentDetailsController.getAllAssessments);
+router.delete(
+  "/deleteAssessmentDetail/:id",
+  assessmentDetailsController.deleteAssessmentDetail,
 );
+router.put("/updateAssessment/:id",assessmentDetailsController.updateAssessment);
+
+
+// DASHBOARD
+router.get("/dashboard-stats", dashboardController.getDashboardStats);
 
 // ASSESSMENT Images
 router.post(
